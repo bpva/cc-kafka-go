@@ -33,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, err = conn.Write([]byte{0, 0, 0, 7})
+	_, err = conn.Write([]byte{0, 0, 0, 0, 0, 0, 0, 7})
 	if err != nil {
 		fmt.Println("Error writing:", err.Error())
 		os.Exit(1)
