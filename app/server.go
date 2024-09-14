@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -10,22 +11,6 @@ import (
 
 var _ = net.Listen
 var _ = os.Exit
-
-type responseHeader struct {
-	CorrelationId int32
-}
-
-type response struct {
-	len int32
-	hdr responseHeader
-}
-
-func (r *response) bytes() []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint32(buf, uint32(r.len))
-	binary.BigEndian.PutUint32(buf[4:], uint32(r.hdr.CorrelationId))
-	return buf
-}
 
 func main() {
 	fmt.Println("Logs from your program will appear here!")
@@ -65,7 +50,21 @@ func main() {
 
 	correlationId := binary.BigEndian.Uint32(messageBuf[4:8])
 
-	resp := response{
+	var resp response
+
+	req := requestFromBytes(messageBuf)
+	err = req.validate()
+	if err != nil {
+		if errors.Is(err, UnknownVersionErr) {
+			respondWithError(
+				conn,
+				correlationId,
+				UNKNOWN_VERSION,
+			)
+		}
+	}
+
+	resp = response{
 		len: 0,
 		hdr: responseHeader{
 			CorrelationId: int32(correlationId),
@@ -76,6 +75,19 @@ func main() {
 
 	if err != nil {
 		fmt.Println("Error writing:", err.Error())
+		os.Exit(1)
+	}
+}
+
+func respondWithError(conn net.Conn, correlationId uint32, err errorCode) {
+	resp := make([]byte, 10)
+	binary.BigEndian.PutUint32(resp, 10)
+	binary.BigEndian.PutUint32(resp[4:], uint32(correlationId))
+	binary.BigEndian.PutUint16(resp[8:], uint16(err))
+	_, er := conn.Write(resp)
+
+	if er != nil {
+		fmt.Println("Error writing:", er.Error())
 		os.Exit(1)
 	}
 }
