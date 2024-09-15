@@ -72,6 +72,11 @@ func makeApiVersionsResponse(correlationId int32) *response {
 					MinVersion: 0,
 					MaxVersion: 4,
 				},
+				{
+					ApiKey:     1,
+					MinVersion: 0,
+					MaxVersion: 16,
+				},
 			},
 			ThrottleTimeMs: 0,
 		},
