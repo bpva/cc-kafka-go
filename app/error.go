@@ -6,6 +6,7 @@ type errorCode int16
 type kafkaError string
 
 const (
+	NO_ERROR        errorCode = 0
 	UNKNOWN_VERSION errorCode = 35
 )
 

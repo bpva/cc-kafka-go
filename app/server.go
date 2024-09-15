@@ -65,11 +65,25 @@ func main() {
 	}
 
 	resp = response{
-		len: 0,
 		hdr: responseHeader{
 			CorrelationId: int32(correlationId),
 		},
+		body: &apiVersionsResponseBody{
+			ErrorCode: 0,
+			ApiKeys: []apiKey{
+				{
+					ApiKey:     18,
+					MinVersion: 0,
+					MaxVersion: 4,
+				},
+			},
+			ThrottleTimeMs: 0,
+		},
 	}
+
+	resp.setLen()
+
+	fmt.Printf("Response: %+v\n", resp.bytes())
 
 	_, err = conn.Write(resp.bytes())
 
