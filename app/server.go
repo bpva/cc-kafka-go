@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -27,78 +25,36 @@ func main() {
 
 	fmt.Println("Connection accepted")
 
-	lengthBuf := make([]byte, 4)
-
-	_, err = io.ReadFull(conn, lengthBuf)
-	if err != nil {
-		fmt.Println("Error reading length:", err.Error())
-		os.Exit(1)
-	}
-
-	length := binary.BigEndian.Uint32(lengthBuf)
-	fmt.Println("Length:", length)
-
-	messageBuf := make([]byte, length)
-	_, err = io.ReadFull(conn, messageBuf)
-	if err != nil {
-		fmt.Println("Error reading message:", err.Error())
-		os.Exit(1)
-	}
-
-	correlationId := binary.BigEndian.Uint32(messageBuf[4:8])
-
-	var resp response
-
-	req := requestFromBytes(messageBuf)
-	err = req.validate()
-	if err != nil {
-		if errors.Is(err, UnknownVersionErr) {
-			respondWithError(
-				conn,
-				correlationId,
-				UNKNOWN_VERSION,
-			)
-		}
-	}
-
-	resp = response{
-		hdr: responseHeader{
-			CorrelationId: int32(correlationId),
-		},
-		body: &apiVersionsResponseBody{
-			ErrorCode: 0,
-			ApiKeys: []apiKey{
-				{
-					ApiKey:     18,
-					MinVersion: 0,
-					MaxVersion: 4,
-				},
-			},
-			ThrottleTimeMs: 0,
-		},
-	}
-
-	resp.setLen()
-
-	fmt.Printf("Response: %+v\n", resp.bytes())
-
-	_, err = conn.Write(resp.bytes())
-
-	if err != nil {
-		fmt.Println("Error writing:", err.Error())
-		os.Exit(1)
+	for {
+		handleConnection(conn)
 	}
 }
 
-func respondWithError(conn net.Conn, correlationId uint32, err errorCode) {
-	resp := make([]byte, 10)
-	binary.BigEndian.PutUint32(resp, 10)
-	binary.BigEndian.PutUint32(resp[4:], uint32(correlationId))
-	binary.BigEndian.PutUint16(resp[8:], uint16(err))
-	_, er := conn.Write(resp)
-
-	if er != nil {
-		fmt.Println("Error writing:", er.Error())
+func handleConnection(conn net.Conn) {
+	buf := make([]byte, 1024)
+	br, err := conn.Read(buf)
+	if err != nil && err != io.EOF {
+		fmt.Println("Error reading:", err.Error())
 		os.Exit(1)
+	}
+
+	if err == io.EOF {
+		fmt.Println("Connection closed")
+		return
+	}
+
+	req := requestFromBytes(buf)
+	if req.hdr.len != int32(br-4) {
+		fmt.Printf("header length %d does not match buffer length %d\n", req.hdr.len, br)
+		errResp := makeErrorResponce(req.hdr.correlationId, CORRUPT_MESSAGE)
+		conn.Write(errResp.bytes())
+		return
+	}
+	resp := makeResponse(req)
+
+	fmt.Printf("Responding with: %v\n", resp)
+	_, err = conn.Write(resp.bytes())
+	if err != nil {
+		fmt.Println("Error writing:", err.Error())
 	}
 }

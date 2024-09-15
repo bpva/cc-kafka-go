@@ -7,6 +7,7 @@ type kafkaError string
 
 const (
 	NO_ERROR        errorCode = 0
+	CORRUPT_MESSAGE errorCode = 2
 	UNKNOWN_VERSION errorCode = 35
 )
 
@@ -16,6 +17,20 @@ const (
 
 type errorBody struct {
 	error errorCode
+}
+
+func makeErrorResponce(correlationId int32, error errorCode) *response {
+	res := &response{
+		hdr: responseHeader{
+			CorrelationId: correlationId,
+		},
+		body: &errorBody{
+			error: error,
+		},
+	}
+	res.setLen()
+
+	return res
 }
 
 func (e *errorBody) bytes() []byte {
