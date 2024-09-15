@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"os"
+	"time"
 )
 
 func main() {
@@ -21,6 +21,7 @@ func main() {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	defer conn.Close()
 
 	fmt.Println("Connection accepted")
@@ -32,28 +33,19 @@ func main() {
 
 func handleConnection(conn net.Conn) {
 	buf := make([]byte, 1024)
-	br, err := conn.Read(buf)
-	if err != nil && err != io.EOF {
-		fmt.Println("Error reading:", err.Error())
-		os.Exit(1)
-	}
-
-	if err == io.EOF {
-		fmt.Println("Connection closed")
-		return
-	}
+	br, _ := conn.Read(buf)
 
 	req := requestFromBytes(buf)
 	if req.hdr.len != int32(br-4) {
-		fmt.Printf("header length %d does not match buffer length %d\n", req.hdr.len, br)
+		fmt.Printf("header length %d does not match buffer length %d\n", req.hdr.len, br-4)
 		errResp := makeErrorResponce(req.hdr.correlationId, CORRUPT_MESSAGE)
 		conn.Write(errResp.bytes())
 		return
 	}
 	resp := makeResponse(req)
 
-	fmt.Printf("Responding with: %v\n", resp)
-	_, err = conn.Write(resp.bytes())
+	fmt.Printf("Responding with: %v\n", resp.bytes())
+	_, err := conn.Write(resp.bytes())
 	if err != nil {
 		fmt.Println("Error writing:", err.Error())
 	}

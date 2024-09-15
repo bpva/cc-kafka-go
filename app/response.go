@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 type responseHeader struct {
@@ -37,6 +38,7 @@ type tagBuffer struct {
 }
 
 func makeResponse(req *request) *response {
+	fmt.Println("Making response")
 	correlationId := req.hdr.correlationId
 	apiKey := req.hdr.apiKey
 
@@ -50,6 +52,7 @@ func makeResponse(req *request) *response {
 
 	switch apiKey {
 	case APIVERSIONS_KEY:
+		fmt.Println("Making api versions response")
 		return makeApiVersionsResponse(correlationId)
 	default:
 		return makeErrorResponce(correlationId, CORRUPT_MESSAGE)
@@ -76,8 +79,12 @@ func makeApiVersionsResponse(correlationId int32) *response {
 }
 
 func (tb *tagBuffer) bytes() []byte {
-	tb.buf = binary.AppendUvarint(tb.buf, uint64(len(tb.buf)))
-	return tb.buf
+	length := uint64(len(tb.buf))
+	varintLength := binary.PutUvarint(make([]byte, binary.MaxVarintLen64), length)
+	buf := make([]byte, varintLength+len(tb.buf))
+	binary.PutUvarint(buf, length)
+	copy(buf[varintLength:], tb.buf)
+	return buf
 }
 
 func (avrb *apiVersionsResponseBody) bytes() []byte {
@@ -90,6 +97,7 @@ func (avrb *apiVersionsResponseBody) bytes() []byte {
 	buf = append(buf, make([]byte, 4)...)
 	binary.BigEndian.PutUint32(buf[len(buf)-4:], uint32(avrb.ThrottleTimeMs))
 	buf = append(buf, avrb.TagBuffer.bytes()...)
+	fmt.Printf("buf bytes: %v\n", buf)
 	return buf
 }
 
